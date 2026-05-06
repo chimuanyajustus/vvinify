@@ -54,6 +54,33 @@
   </div>
 </div>
 
+<!-- Admin Dashboard Modal -->
+<div id="adminModal" class="modal" style="display: none;">
+  <div class="modal-content admin-modal-content">
+    <span class="close" onclick="closeAdminModal()">&times;</span>
+    <div id="adminLoginSection">
+      <h2>Admin Login</h2>
+      <input type="password" id="adminPasswordInput" placeholder="Admin password" />
+      <button onclick="handleAdminLogin()" class="login-btn">Login as Admin</button>
+    </div>
+    <div id="adminDashboardSection" style="display: none;">
+      <h2>Admin Dashboard</h2>
+      <div class="admin-stats">
+        <div class="stat-card">
+          <div class="stat-number" id="adminTotalUsers">0</div>
+          <div class="stat-label">Total Users</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number" id="adminPremiumUsers">0</div>
+          <div class="stat-label">Premium Users</div>
+        </div>
+      </div>
+      <button onclick="exportUsers()" class="login-btn" style="margin-top: 20px;">Export User Data</button>
+      <button onclick="closeAdminModal()" class="login-btn" style="margin-top: 10px; background: #666;">Close</button>
+    </div>
+  </div>
+</div>
+
 <div class="app">
 
   <!-- Sidebar -->
@@ -77,6 +104,7 @@
     <button class="premium-btn-sidebar" data-icon="✨" onclick="openPremiumModal()" style="margin-top: 10px;">✨ Go Premium</button>
     <button class="login-btn-sidebar" data-icon="🔐" onclick="openLoginModal()" style="margin-top: 10px;">🔐 Sign In</button>
     <button class="signout-btn-sidebar" data-icon="🚪" onclick="handleSignOut()" style="margin-top: 10px; display: none;">🚪 Sign Out</button>
+    <button class="admin-btn-sidebar" data-icon="⚙️" onclick="openAdminPanel()" style="margin-top: 10px; display: none;">⚙️ Admin</button>
   </aside>
 
   <!-- Main -->
@@ -89,11 +117,6 @@
         <button onclick="searchMusic()" class="search-btn">🔍</button>
       </div>
       <div class="profile" onclick="openLoginModal()"></div>
-    </div>
-
-    <div class="hero-panel">
-      <div class="hero-card hero-metrics">
-      </div>
     </div>
 
     <!-- Ads Banner (Free users only) -->
@@ -133,19 +156,16 @@
 
         <div class="card">
           <img src="https://picsum.photos/200?1">
-          <div class="overlay">▶</div>
           <p>Midnight Feelings</p>
         </div>
 
         <div class="card">
           <img src="https://picsum.photos/200?2">
-          <div class="overlay">▶</div>
           <p>Chill Vibes</p>
         </div>
 
         <div class="card">
           <img src="https://picsum.photos/200?3">
-          <div class="overlay">▶</div>
           <p>Lo-Fi Lounge</p>
         </div>
 
@@ -171,11 +191,26 @@
   </main>
 
   <div class="mobile-bottom-nav">
-    <button class="mobile-nav-item active" onclick="navigateTo(document.querySelector('.sidebar nav a:nth-child(1)'), 0)">🏠 Home</button>
-    <button class="mobile-nav-item" onclick="navigateTo(document.querySelector('.sidebar nav a:nth-child(2)'), 1)">🔍 Discover</button>
-    <button class="mobile-nav-item" onclick="navigateTo(document.querySelector('.sidebar nav a:nth-child(3)'), 2)">🎧 Library</button>
-    <button class="mobile-nav-item" onclick="navigateTo(document.querySelector('.sidebar nav a:nth-child(4)'), 3)">📂 Playlists</button>
-    <button class="mobile-nav-item" onclick="navigateTo(document.querySelector('.sidebar nav a:nth-child(5)'), 4)">❤️ Liked</button>
+    <button class="mobile-nav-item active" data-section="home">
+      <div class="nav-icon">🏠</div>
+      <span class="nav-label">Home</span>
+    </button>
+    <button class="mobile-nav-item" data-section="search">
+      <div class="nav-icon">🔍</div>
+      <span class="nav-label">Search</span>
+    </button>
+    <button class="mobile-nav-item" data-section="library">
+      <div class="nav-icon">🎧</div>
+      <span class="nav-label">Library</span>
+    </button>
+    <button class="mobile-nav-item" data-section="premium">
+      <div class="nav-icon">⭐</div>
+      <span class="nav-label">Premium</span>
+    </button>
+    <button class="mobile-nav-item" data-section="create">
+      <div class="nav-icon">➕</div>
+      <span class="nav-label">Create</span>
+    </button>
   </div>
 </div>
 
@@ -195,6 +230,8 @@
     <button onclick="previousSong()">⏮</button>
     <button id="play" onclick="togglePlay()">▶</button>
     <button onclick="nextSong()">⏭</button>
+    <button onclick="toggleRepeat()" id="repeatBtn" title="Repeat">🔁</button>
+    <button onclick="shareSong()" title="Share">📤</button>
   </div>
 
   <div class="progress">
@@ -208,6 +245,43 @@
   </div>
 </div>
 
+<!-- Firebase SDK -->
+<script type="module">
+  // Import Firebase modules
+  import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js';
+  import { getAuth } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js';
+  import { getFirestore } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js';
+
+  // Firebase configuration
+  const firebaseConfig = {
+    apiKey: "AIzaSyDUMMY_API_KEY_FOR_DEMO",
+    authDomain: "vvvinify-demo.firebaseapp.com",
+    projectId: "vvvinify-demo",
+    storageBucket: "vvvinify-demo.appspot.com",
+    messagingSenderId: "123456789",
+    appId: "1:123456789:web:abcdef123456"
+  };
+
+  try {
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    // Make Firebase available globally for the app.js script
+    window.firebaseApp = app;
+    window.firebaseAuth = auth;
+    window.firebaseDb = db;
+    window.firebaseInitialized = true;
+  } catch (error) {
+    console.warn('Firebase initialization failed, app will use localStorage fallback:', error);
+    // Set fallback values
+    window.firebaseApp = null;
+    window.firebaseAuth = null;
+    window.firebaseDb = null;
+    window.firebaseInitialized = false;
+  }
+</script>
 <script src="js/app.js"></script>
 </body>
 </html>

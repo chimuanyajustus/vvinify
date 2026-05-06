@@ -212,12 +212,35 @@
           <div class="stat-number" id="conversionRate">0%</div>
           <div class="stat-label">Premium Conversion</div>
         </div>
+        <div class="stat-card">
+          <div class="stat-number" id="newUsersToday">0</div>
+          <div class="stat-label">New Users Today</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number" id="avgSessionTime">0m</div>
+          <div class="stat-label">Avg Session Time</div>
+        </div>
       </div>
 
       <div class="users-table">
+        <div style="padding: 20px; background: white; border-radius: 10px 10px 0 0; border-bottom: 1px solid #eee;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <h3 style="margin: 0; color: #333;">User Management</h3>
+            <div style="display: flex; gap: 10px; align-items: center;">
+              <input type="text" id="userSearch" placeholder="Search users..." style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 5px; width: 200px;">
+              <select id="userFilter" style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 5px;">
+                <option value="all">All Users</option>
+                <option value="premium">Premium Only</option>
+                <option value="free">Free Only</option>
+              </select>
+              <button onclick="exportUsers()" style="background: #48bb78; color: white; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer;">Export CSV</button>
+            </div>
+          </div>
+        </div>
         <table>
           <thead>
             <tr>
+              <th><input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll()"></th>
               <th>Name</th>
               <th>Email</th>
               <th>Signup Date</th>
@@ -230,9 +253,46 @@
           </tbody>
         </table>
       </div>
+
+      <div style="background: white; border-radius: 10px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); padding: 20px; margin-top: 20px;">
+        <h3 style="margin-top: 0; color: #333;">Bulk Actions</h3>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+          <button onclick="bulkAction('makePremium')" style="background: #667eea; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer;">Make Selected Premium</button>
+          <button onclick="bulkAction('makeFree')" style="background: #ed8936; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer;">Make Selected Free</button>
+          <button onclick="bulkAction('delete')" style="background: #e53e3e; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer;">Delete Selected</button>
+          <button onclick="selectAll()" style="background: #48bb78; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer;">Select All</button>
+        </div>
+      </div>
     </div>
   </div>
 
-  <script src="js/admin.js"></script>
+<!-- Firebase SDK -->
+<script type="module">
+  // Import Firebase modules
+  import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js';
+  import { getAuth } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js';
+  import { getFirestore } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js';
+
+  // Firebase configuration
+  const firebaseConfig = {
+    apiKey: "AIzaSyDUMMY_API_KEY_FOR_DEMO",
+    authDomain: "vvvinify-demo.firebaseapp.com",
+    projectId: "vvvinify-demo",
+    storageBucket: "vvvinify-demo.appspot.com",
+    messagingSenderId: "123456789",
+    appId: "1:123456789:web:abcdef123456"
+  };
+
+  // Initialize Firebase
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  // Make Firebase available globally for the admin.js script
+  window.firebaseApp = app;
+  window.firebaseAuth = auth;
+  window.firebaseDb = db;
+</script>
+<script src="js/admin.js"></script>
 </body>
 </html>

@@ -1,16 +1,128 @@
-// Vvinify Premium Music App with Audius API Integration
+// Vvinify Premium Music App with Audius API Integration and Firebase Backend
+
+// Firebase imports and initialization with fallback
+let firebaseAuth = null;
+let firestoreDB = null;
+
+try {
+  // Try to import Firebase modules
+  if (window.firebaseInitialized) {
+    firebaseAuth = window.firebaseAuth;
+    firestoreDB = {
+      getUserData: async (userId) => {
+        try {
+          const { doc, getDoc } = await import('https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js');
+          const userDoc = await getDoc(doc(window.firebaseDb, 'users', userId));
+          return userDoc.exists() ? userDoc.data() : null;
+        } catch (error) {
+          console.warn('Firestore getUserData failed:', error);
+          return null;
+        }
+      },
+      saveUserData: async (userId, data) => {
+        try {
+          const { doc, setDoc } = await import('https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js');
+          await setDoc(doc(window.firebaseDb, 'users', userId), data, { merge: true });
+          return true;
+        } catch (error) {
+          console.warn('Firestore saveUserData failed:', error);
+          return false;
+        }
+      },
+      getUserPlaylists: async (userId) => {
+        try {
+          const { doc, getDoc } = await import('https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js');
+          const userDoc = await getDoc(doc(window.firebaseDb, 'users', userId));
+          const userData = userDoc.exists() ? userDoc.data() : {};
+          return userData.playlists || [];
+        } catch (error) {
+          console.warn('Firestore getUserPlaylists failed:', error);
+          return [];
+        }
+      },
+      saveUserPlaylists: async (userId, playlists) => {
+        try {
+          const { doc, updateDoc } = await import('https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js');
+          await updateDoc(doc(window.firebaseDb, 'users', userId), { playlists });
+          return true;
+        } catch (error) {
+          console.warn('Firestore saveUserPlaylists failed:', error);
+          return false;
+        }
+      },
+      getUserSongs: async (userId) => {
+        try {
+          const { doc, getDoc } = await import('https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js');
+          const userDoc = await getDoc(doc(window.firebaseDb, 'users', userId));
+          const userData = userDoc.exists() ? userDoc.data() : {};
+          return userData.songs || [];
+        } catch (error) {
+          console.warn('Firestore getUserSongs failed:', error);
+          return [];
+        }
+      },
+      saveUserSongs: async (userId, songs) => {
+        try {
+          const { doc, updateDoc } = await import('https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js');
+          await updateDoc(doc(window.firebaseDb, 'users', userId), { songs });
+          return true;
+        } catch (error) {
+          console.warn('Firestore saveUserSongs failed:', error);
+          return false;
+        }
+      },
+      getAllUsers: async () => {
+        try {
+          const { collection, getDocs } = await import('https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js');
+          const querySnapshot = await getDocs(collection(window.firebaseDb, 'users'));
+          return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        } catch (error) {
+          console.warn('Firestore getAllUsers failed:', error);
+          return [];
+        }
+      },
+      updateUserPremiumStatus: async (userId, isPremium) => {
+        try {
+          const { doc, updateDoc } = await import('https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js');
+          await updateDoc(doc(window.firebaseDb, 'users', userId), { isPremium });
+          return true;
+        } catch (error) {
+          console.warn('Firestore updateUserPremiumStatus failed:', error);
+          return false;
+        }
+      },
+      deleteUser: async (userId) => {
+        try {
+          const { doc, deleteDoc } = await import('https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js');
+          await deleteDoc(doc(window.firebaseDb, 'users', userId));
+          return true;
+        } catch (error) {
+          console.warn('Firestore deleteUser failed:', error);
+          return false;
+        }
+      }
+    };
+  }
+} catch (error) {
+  console.warn('Firebase import failed, using localStorage only mode:', error);
+  firebaseAuth = null;
+  firestoreDB = null;
+}
 
 // State Management
 const appState = {
   isPlaying: false,
   currentSong: null,
   currentPlaylist: [],
-  playlists: JSON.parse(localStorage.getItem('playlists')) || [],
-  songs: JSON.parse(localStorage.getItem('songs')) || [],
+  playlists: [],
+  songs: [],
+  recentlyPlayed: [],
   currentSection: 'home',
-  user: JSON.parse(localStorage.getItem('userData')) || { name: 'Guest', isPremium: false, skipsUsed: 0, likedSongs: [] },
+  user: { name: 'Guest', isPremium: false, skipsUsed: 0, likedSongs: [] },
   searchResults: [],
-  isLoading: false
+  isLoading: false,
+  isRepeat: false,
+  firebaseUser: null
 };
 
 const AUDIUS_API = 'https://api.audius.co/v1/tracks/search';
@@ -19,15 +131,224 @@ const SEARCH_TIMEOUT = 10000; // 10 second timeout
 
 // Initialize App
 document.addEventListener('DOMContentLoaded', () => {
-  initializeApp();
-  loadSongs();
-  updateUserDisplay();
-  updateAdVisibility();
+  // Check if Firebase is available
+  if (firebaseAuth && window.firebaseInitialized) {
+    // Firebase is available - use Firebase auth
+    firebaseAuth.onAuthStateChanged(async (user) => {
+      if (user) {
+        // User is signed in with Firebase
+        appState.firebaseUser = user;
+        appState.user = {
+          name: user.displayName || user.email.split('@')[0],
+          email: user.email,
+          isPremium: false, // Will be loaded from Firestore
+          skipsUsed: 0,
+          likedSongs: []
+        };
+
+        // Load user data from Firestore with fallback
+        const firebaseLoaded = await loadUserDataFromFirestore(user.uid);
+        if (!firebaseLoaded) {
+          // Load from localStorage as fallback
+          const localUserData = JSON.parse(localStorage.getItem('userData')) || {};
+          appState.user = { ...appState.user, ...localUserData };
+        }
+
+        // Load user playlists and songs with fallbacks
+        await loadUserPlaylistsFromFirestore(user.uid);
+        await loadUserSongsFromFirestore(user.uid);
+
+        // Load recently played from localStorage
+        appState.recentlyPlayed = JSON.parse(localStorage.getItem('recentlyPlayed')) || [];
+
+        updateUserDisplay();
+        updateAdVisibility();
+      } else {
+        // No Firebase user - check for localStorage user (legacy support)
+        const localUserData = localStorage.getItem('userData');
+        const userMode = localStorage.getItem('userMode');
+
+        if (localUserData && userMode === 'loggedIn') {
+          // Use localStorage user data
+          const user = JSON.parse(localUserData);
+          appState.user = {
+            name: user.name || 'Guest',
+            email: user.email || '',
+            isPremium: user.isPremium || false,
+            skipsUsed: user.skipsUsed || 0,
+            likedSongs: user.likedSongs || []
+          };
+
+          // Load playlists and songs from localStorage
+          appState.playlists = JSON.parse(localStorage.getItem('playlists')) || [];
+          appState.songs = JSON.parse(localStorage.getItem('songs')) || [];
+
+          updateUserDisplay();
+          updateAdVisibility();
+        } else {
+          // No user data found - redirect to landing page
+          window.location.href = 'landing.html';
+          return;
+        }
+      }
+
+      // Continue with app initialization
+      initializeApp();
+      loadSongs();
+      updateUserDisplay();
+      updateAdVisibility();
+
+      // Check for shared song
+      const urlParams = new URLSearchParams(window.location.search);
+      const sharedSongId = urlParams.get('song');
+      if (sharedSongId) {
+        loadSharedSong(sharedSongId);
+      }
+    });
+  } else {
+    // Firebase not available - use localStorage only mode
+    console.log('Firebase not available, using localStorage-only mode');
+
+    const localUserData = localStorage.getItem('userData');
+    const userMode = localStorage.getItem('userMode');
+
+    if (localUserData && userMode === 'loggedIn') {
+      console.log('Loading from localStorage');
+      // Use localStorage user data
+      const user = JSON.parse(localUserData);
+      appState.user = {
+        name: user.name || 'Guest',
+        email: user.email || '',
+        isPremium: user.isPremium || false,
+        skipsUsed: user.skipsUsed || 0,
+        likedSongs: user.likedSongs || []
+      };
+
+      // Load playlists and songs from localStorage
+      appState.playlists = JSON.parse(localStorage.getItem('playlists')) || [];
+      appState.songs = JSON.parse(localStorage.getItem('songs')) || [];
+      appState.recentlyPlayed = JSON.parse(localStorage.getItem('recentlyPlayed')) || [];
+      console.log('Loaded recentlyPlayed:', appState.recentlyPlayed);
+
+      initializeApp();
+      loadSongs();
+      updateUserDisplay();
+      updateAdVisibility();
+    } else {
+      // No user data - redirect to landing page
+      window.location.href = 'landing.html';
+      return;
+    }
+
+    // Check for shared song
+    const urlParams = new URLSearchParams(window.location.search);
+    const sharedSongId = urlParams.get('song');
+    if (sharedSongId) {
+      loadSharedSong(sharedSongId);
+    }
+  }
 });
 
+// Firebase Firestore Functions with localStorage fallback
+async function loadUserDataFromFirestore(userId) {
+  try {
+    const userDoc = await firestoreDB.getUserData(userId);
+    if (userDoc) {
+      appState.user = {
+        ...appState.user,
+        ...userDoc,
+        likedSongs: userDoc.likedSongs || [],
+        skipsUsed: userDoc.skipsUsed || 0
+      };
+      return true;
+    }
+  } catch (error) {
+    console.warn('Firebase user data load failed, using localStorage fallback:', error);
+  }
+  return false;
+}
+
+async function saveUserDataToFirestore() {
+  if (!appState.firebaseUser) return false;
+
+  try {
+    await firestoreDB.saveUserData(appState.firebaseUser.uid, {
+      name: appState.user.name,
+      email: appState.user.email,
+      isPremium: appState.user.isPremium,
+      likedSongs: appState.user.likedSongs,
+      skipsUsed: appState.user.skipsUsed,
+      lastLogin: new Date().toISOString()
+    });
+    return true;
+  } catch (error) {
+    console.warn('Firebase user data save failed, using localStorage fallback:', error);
+    // Fallback to localStorage
+    localStorage.setItem('userData', JSON.stringify(appState.user));
+    return false;
+  }
+}
+
+async function loadUserPlaylistsFromFirestore(userId) {
+  try {
+    const playlists = await firestoreDB.getUserPlaylists(userId);
+    appState.playlists = playlists || [];
+    return true;
+  } catch (error) {
+    console.warn('Firebase playlists load failed, using localStorage fallback:', error);
+    // Fallback to localStorage
+    appState.playlists = JSON.parse(localStorage.getItem('playlists')) || [];
+    return false;
+  }
+}
+
+async function saveUserPlaylistsToFirestore() {
+  if (!appState.firebaseUser) return false;
+
+  try {
+    await firestoreDB.saveUserPlaylists(appState.firebaseUser.uid, appState.playlists);
+    return true;
+  } catch (error) {
+    console.warn('Firebase playlists save failed, using localStorage fallback:', error);
+    // Fallback to localStorage
+    localStorage.setItem('playlists', JSON.stringify(appState.playlists));
+    return false;
+  }
+}
+
+async function loadUserSongsFromFirestore(userId) {
+  try {
+    const songs = await firestoreDB.getUserSongs(userId);
+    appState.songs = songs || [];
+    return true;
+  } catch (error) {
+    console.warn('Firebase songs load failed, using localStorage fallback:', error);
+    // Fallback to localStorage
+    appState.songs = JSON.parse(localStorage.getItem('songs')) || [];
+    return false;
+  }
+}
+
+async function saveUserSongsToFirestore() {
+  if (!appState.firebaseUser) return false;
+
+  try {
+    await firestoreDB.saveUserSongs(appState.firebaseUser.uid, appState.songs);
+    return true;
+  } catch (error) {
+    console.warn('Firebase songs save failed, using localStorage fallback:', error);
+    // Fallback to localStorage
+    localStorage.setItem('songs', JSON.stringify(appState.songs));
+    return false;
+  }
+}
+
+// Initialize App UI and Event Listeners
 function initializeApp() {
+  console.log('initializeApp called');
   setupEventListeners();
   updateUI();
+  loadSongs();
 }
 
 // Event Listeners Setup
@@ -40,6 +361,16 @@ function setupEventListeners() {
     link.addEventListener('click', (e) => {
       e.preventDefault();
       navigateTo(link, index);
+    });
+  });
+
+  // Mobile navigation
+  const mobileNavItems = document.querySelectorAll('.mobile-nav-item');
+  mobileNavItems.forEach((item, index) => {
+    item.addEventListener('click', (e) => {
+      e.preventDefault();
+      const section = item.dataset.section;
+      handleMobileNav(section);
     });
   });
 
@@ -68,6 +399,20 @@ function setupEventListeners() {
   const audio = document.getElementById('audioPlayer');
   audio.addEventListener('timeupdate', updateProgressBar);
   audio.addEventListener('loadedmetadata', updateDuration);
+  audio.addEventListener('play', () => {
+    appState.isPlaying = true;
+    updatePlayButton();
+  });
+  audio.addEventListener('pause', () => {
+    appState.isPlaying = false;
+    updatePlayButton();
+  });
+  audio.addEventListener('ended', () => {
+    appState.isPlaying = false;
+    updatePlayButton();
+    // Auto-play next song
+    nextSong();
+  });
 }
 
 function toggleSidebar() {
@@ -351,6 +696,46 @@ function togglePlay() {
   updatePlayButton();
 }
 
+// Update Recently Played List
+function updateRecentlyPlayed(song) {
+  if (!song) return;
+
+  // Ensure recentlyPlayed is an array
+  if (!appState.recentlyPlayed) {
+    appState.recentlyPlayed = [];
+  }
+
+  // Remove if already exists
+  appState.recentlyPlayed = appState.recentlyPlayed.filter(s => s.id !== song.id);
+
+  // Add to beginning
+  appState.recentlyPlayed.unshift(song);
+
+  // Keep only last 10
+  if (appState.recentlyPlayed.length > 10) {
+    appState.recentlyPlayed = appState.recentlyPlayed.slice(0, 10);
+  }
+
+  // Save to localStorage
+  localStorage.setItem('recentlyPlayed', JSON.stringify(appState.recentlyPlayed));
+
+  // Update UI
+  updateRecentlyPlayedUI();
+}
+
+// Update Recently Played UI
+function updateRecentlyPlayedUI() {
+  const recentlyPlayedContainer = document.querySelector('.recently-played .song-grid');
+  if (!recentlyPlayedContainer) return;
+
+  recentlyPlayedContainer.innerHTML = '';
+
+  appState.recentlyPlayed.forEach(song => {
+    const songElement = createSongElement(song);
+    recentlyPlayedContainer.appendChild(songElement);
+  });
+}
+
 // Song Playback with Error Handling
 function playSong(index) {
   const songs = appState.searchResults.length > 0 ? appState.searchResults : appState.songs;
@@ -361,6 +746,9 @@ function playSong(index) {
   
   appState.currentSong = songs[index];
   appState.isPlaying = true;
+  
+  // Update recently played
+  updateRecentlyPlayed(appState.currentSong);
   
   const audio = document.getElementById('audioPlayer');
   
@@ -431,9 +819,142 @@ function updateSongInfo() {
   document.getElementById('playerImg').src = appState.currentSong.cover;
 }
 
+function openAdminPanel() {
+  document.getElementById('adminModal').style.display = 'flex';
+  document.getElementById('adminLoginSection').style.display = 'block';
+  document.getElementById('adminDashboardSection').style.display = 'none';
+}
+
+function closeAdminModal() {
+  document.getElementById('adminModal').style.display = 'none';
+}
+
+function handleAdminLogin() {
+  const password = document.getElementById('adminPasswordInput').value;
+  if (password === 'admin123') { // Simple admin password
+    document.getElementById('adminLoginSection').style.display = 'none';
+    document.getElementById('adminDashboardSection').style.display = 'block';
+    loadAdminStats();
+  } else {
+    alert('Invalid admin password');
+  }
+}
+
+function loadAdminStats() {
+  const users = JSON.parse(localStorage.getItem('allUsers')) || [];
+  const totalUsers = users.length;
+  const premiumUsers = users.filter(u => u.isPremium).length;
+  
+  document.getElementById('adminTotalUsers').textContent = totalUsers;
+  document.getElementById('adminPremiumUsers').textContent = premiumUsers;
+}
+
+function exportUsers() {
+  const users = JSON.parse(localStorage.getItem('allUsers')) || [];
+  
+  if (users.length === 0) {
+    alert('No users to export');
+    return;
+  }
+
+  const csvContent = [
+    ['Name', 'Email', 'Premium', 'Signup Date'],
+    ...users.map(user => [
+      user.name || 'Unknown',
+      user.email,
+      user.isPremium ? 'Yes' : 'No',
+      new Date(user.signupTime || user.loginTime).toLocaleDateString()
+    ])
+  ].map(row => row.map(field => `"${field}"`).join(',')).join('\n');
+
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+  link.setAttribute('href', url);
+  link.setAttribute('download', `vvinify_users_${new Date().toISOString().split('T')[0]}.csv`);
+  link.style.visibility = 'hidden';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
 function updatePlayButton() {
   const playBtn = document.getElementById('play');
   playBtn.textContent = appState.isPlaying ? '⏸' : '▶';
+  
+  const repeatBtn = document.getElementById('repeatBtn');
+  if (repeatBtn) {
+    repeatBtn.textContent = appState.isRepeat ? '🔁' : '🔄';
+    repeatBtn.style.opacity = appState.isRepeat ? '1' : '0.5';
+  }
+}
+
+function toggleRepeat() {
+  appState.isRepeat = !appState.isRepeat;
+  const audio = document.getElementById('audioPlayer');
+  audio.loop = appState.isRepeat;
+  updatePlayButton();
+}
+
+function shareSong() {
+  if (!appState.currentSong) {
+    showError('No song to share');
+    return;
+  }
+  
+  const shareUrl = `${window.location.origin}${window.location.pathname}?song=${encodeURIComponent(appState.currentSong.id)}`;
+  
+  if (navigator.share) {
+    navigator.share({
+      title: appState.currentSong.name,
+      text: `Check out "${appState.currentSong.name}" by ${appState.currentSong.artist}`,
+      url: shareUrl
+    });
+  } else {
+    // Fallback: copy to clipboard
+    navigator.clipboard.writeText(shareUrl).then(() => {
+      showError('Share link copied to clipboard!');
+    }).catch(() => {
+      showError('Share link: ' + shareUrl);
+    });
+  }
+}
+
+function loadSharedSong(songId) {
+  // First check if song exists in our library
+  let song = appState.songs.find(s => s.id === songId);
+  
+  if (song) {
+    // Find index and play
+    const index = appState.songs.findIndex(s => s.id === songId);
+    playSong(index);
+    return;
+  }
+  
+  // If not found, try to search for it
+  fetch(`${AUDIUS_API}?query=${encodeURIComponent(songId)}&limit=1`)
+    .then(response => response.json())
+    .then(data => {
+      if (data.data && data.data.length > 0) {
+        const track = data.data[0];
+        song = {
+          id: track.id,
+          name: track.title,
+          artist: track.user.name,
+          cover: track.artwork['150x150'] || track.artwork['1000x1000'] || 'https://picsum.photos/200',
+          streamUrl: track.streamUrl,
+          previewUrl: track.previewUrl
+        };
+        appState.songs.unshift(song); // Add to beginning
+        playSong(0);
+      } else {
+        showError('Shared song not found');
+      }
+    })
+    .catch(error => {
+      console.error('Error loading shared song:', error);
+      showError('Could not load shared song');
+    });
 }
 
 // Premium Skip Control with Error Handling
@@ -486,13 +1007,52 @@ function navigateTo(link, index) {
   updateMainContent();
 }
 
+function handleMobileNav(section) {
+  const sectionMapping = {
+    home: 0,
+    search: 1,
+    library: 2,
+    premium: 'premium',
+    create: 'create'
+  };
+
+  const index = sectionMapping[section];
+  
+  if (index === 'premium') {
+    openPremiumModal();
+    return;
+  }
+  
+  if (index === 'create') {
+    createPlaylist();
+    return;
+  }
+
+  const link = document.querySelector(`.sidebar nav a:nth-child(${index + 1})`);
+  if (link) {
+    navigateTo(link, index);
+  }
+}
+
 function updateMainContent() {
   const title = document.getElementById('sectionTitle');
   
   switch(appState.currentSection) {
     case 'home':
       title.textContent = 'Recently Played';
-      displaySongs(appState.songs);
+      const recentlyPlayed = JSON.parse(localStorage.getItem('recentlyPlayed')) || [];
+      if (recentlyPlayed.length > 0) {
+        // Convert recently played to song format and display
+        const recentSongs = recentlyPlayed.map(item => ({
+          id: item.id,
+          name: item.name,
+          artist: item.artist,
+          cover: item.cover
+        }));
+        displaySongs(recentSongs);
+      } else {
+        displaySongs(appState.songs.slice(0, 10)); // Fallback to first 10 songs
+      }
       break;
     case 'discover':
       title.textContent = 'Discover';
@@ -535,7 +1095,6 @@ function displaySongs(songs) {
     <div class="card" onclick="playSong(${index})">
       <img src="${song.cover}" alt="${song.name}" onerror="this.src='https://picsum.photos/200?default'">
       <button class="like-btn ${(appState.user.likedSongs || []).includes(song.id) ? 'liked' : ''}" onclick="toggleLike(event, ${JSON.stringify(song.id)})">♥</button>
-      <div class="overlay">▶</div>
       <div class="card-meta">
         <p>${song.name}</p>
         <span class="artist">${song.artist}</span>
@@ -612,9 +1171,9 @@ function createPlaylist() {
       songs: [],
       createdAt: new Date().toLocaleDateString()
     };
-    
+
     appState.playlists.push(playlist);
-    saveToLocalStorage();
+    saveUserPlaylistsToFirestore();
     updateMainContent();
     showError(`✨ Playlist "${name}" created!`);
   } catch (error) {
@@ -682,7 +1241,7 @@ function uploadSongs() {
     
     setTimeout(() => {
       if (successCount > 0) {
-        saveToLocalStorage();
+        saveUserSongsToFirestore();
         updateMainContent();
         showError(`✅ ${successCount}/${totalFiles} song(s) added to your library!`);
       } else {
@@ -724,7 +1283,7 @@ function loadSongs() {
       }
     ];
     
-    saveToLocalStorage();
+    saveUserSongsToFirestore();
   }
   
   displaySongs(appState.songs);
@@ -809,11 +1368,34 @@ function handleSignup() {
 }
 
 function handleSignOut() {
-  // Reset user to guest
-  appState.user = { name: 'Guest', isPremium: false, skipsUsed: 0 };
-  saveUserData();
-  updateUserDisplay();
-  updateAdVisibility();
+  // Save user data before signing out
+  saveUserDataToFirestore();
+  saveUserPlaylistsToFirestore();
+  saveUserSongsToFirestore();
+
+  // Try Firebase sign out first
+  try {
+    firebaseAuth.signOut().then(() => {
+      console.log('Firebase sign out successful');
+    }).catch((error) => {
+      console.warn('Firebase sign out failed:', error);
+    });
+  } catch (error) {
+    console.warn('Firebase sign out error:', error);
+  }
+
+  // Clear localStorage data
+  localStorage.removeItem('userData');
+  localStorage.removeItem('userMode');
+  localStorage.removeItem('playlists');
+  localStorage.removeItem('songs');
+
+  // Reset app state
+  appState.user = { name: 'Guest', isPremium: false, skipsUsed: 0, likedSongs: [] };
+  appState.firebaseUser = null;
+  appState.playlists = [];
+  appState.songs = [];
+
   // Redirect to landing page
   window.location.href = 'landing.html';
 }
@@ -825,6 +1407,7 @@ function updateUserDisplay() {
   const loginBtn = document.querySelector('.login-btn-sidebar');
   const signoutBtn = document.querySelector('.signout-btn-sidebar');
   const premiumBtn = document.querySelector('.premium-btn-sidebar');
+  const adminBtn = document.querySelector('.admin-btn-sidebar');
   
   if (appState.user.isPremium) {
     premiumBadge.style.display = 'inline-block';
@@ -838,20 +1421,23 @@ function updateUserDisplay() {
   if (appState.user.name !== 'Guest') {
     if (loginBtn) loginBtn.style.display = 'none';
     if (signoutBtn) signoutBtn.style.display = 'block';
+    if (adminBtn) adminBtn.style.display = 'block'; // Show admin for logged-in users
   } else {
     if (loginBtn) loginBtn.style.display = 'block';
     if (signoutBtn) signoutBtn.style.display = 'none';
+    if (adminBtn) adminBtn.style.display = 'none'; // Hide admin for guests
   }
 }
 
 // Local Storage
 function saveToLocalStorage() {
-  localStorage.setItem('songs', JSON.stringify(appState.songs));
-  localStorage.setItem('playlists', JSON.stringify(appState.playlists));
+  // Legacy function - now saves to Firestore
+  saveUserSongsToFirestore();
+  saveUserPlaylistsToFirestore();
 }
 
 function saveUserData() {
-  localStorage.setItem('user', JSON.stringify(appState.user));
+  saveUserDataToFirestore();
 }
 
 function updateUI() {

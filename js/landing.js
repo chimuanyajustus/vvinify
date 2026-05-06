@@ -1,4 +1,4 @@
-// Landing Page JavaScript
+// Landing Page JavaScript with Firebase Integration
 
 // Modal Functions
 function showLoginModal() {
@@ -40,7 +40,7 @@ function toggleMobileMenu() {
   toggle.classList.toggle('active');
 }
 
-// Enter App Function
+// Enter App Function (Guest Mode)
 function enterApp() {
   // Store guest mode in localStorage
   localStorage.setItem('userMode', 'guest');
@@ -59,8 +59,8 @@ function dismissHero() {
   }
 }
 
-// Handle Login
-function handleLogin() {
+// Handle Login with Firebase (with localStorage fallback)
+async function handleLogin() {
   const email = document.getElementById('loginEmail').value.trim();
   const password = document.getElementById('loginPassword').value.trim();
 
@@ -76,34 +76,72 @@ function handleLogin() {
     return;
   }
 
-  // Get all users
-  const allUsers = JSON.parse(localStorage.getItem('allUsers')) || [];
+  // Show loading state
+  const loginBtn = document.querySelector('#loginModal .btn-modal');
+  const originalText = loginBtn.textContent;
+  loginBtn.textContent = 'Signing in...';
+  loginBtn.disabled = true;
 
-  // Check if user exists
-  const existingUser = allUsers.find(u => u.email === email);
-  if (!existingUser) {
-    alert('User not found. Please sign up first.');
-    return;
+  try {
+    // Try Firebase first
+    const { firebaseAuth } = await import('./firebase.js');
+    const result = await firebaseAuth.signIn(email, password);
+
+    if (result.success) {
+      // Success - redirect to main app
+      window.location.href = 'index.html';
+      return;
+    } else {
+      // Firebase failed, try localStorage fallback
+      console.warn('Firebase login failed, falling back to localStorage:', result.error);
+      await handleLoginFallback(email, password);
+    }
+  } catch (error) {
+    console.warn('Firebase login error, falling back to localStorage:', error);
+    // Firebase failed, use localStorage fallback
+    await handleLoginFallback(email, password);
+  } finally {
+    // Reset button
+    loginBtn.textContent = originalText;
+    loginBtn.disabled = false;
   }
-
-  // Store user data
-  const userData = {
-    email: email,
-    name: existingUser.name,
-    isLoggedIn: true,
-    isPremium: existingUser.isPremium || false,
-    loginTime: new Date().toISOString()
-  };
-
-  localStorage.setItem('userData', JSON.stringify(userData));
-  localStorage.setItem('userMode', 'loggedIn');
-
-  // Redirect to main app
-  window.location.href = 'index.html';
 }
 
-// Handle Signup
-function handleSignup() {
+// Fallback login using localStorage (original implementation)
+async function handleLoginFallback(email, password) {
+  try {
+    // Get all users
+    const allUsers = JSON.parse(localStorage.getItem('allUsers')) || [];
+
+    // Check if user exists
+    const existingUser = allUsers.find(u => u.email === email);
+    if (!existingUser) {
+      alert('User not found. Please sign up first.');
+      return;
+    }
+
+    // Store user data
+    const userData = {
+      email: email,
+      name: existingUser.name,
+      isLoggedIn: true,
+      isPremium: existingUser.isPremium || false,
+      loginTime: new Date().toISOString()
+    };
+
+    localStorage.setItem('userData', JSON.stringify(userData));
+    localStorage.setItem('userMode', 'loggedIn');
+
+    // Success - redirect to main app
+    window.location.href = 'index.html';
+  } catch (error) {
+    alert('An error occurred during login. Please try again.');
+    console.error('Login fallback error:', error);
+  }
+}
+
+// Handle Signup with Firebase (with localStorage fallback)
+async function handleSignup() {
   const email = document.getElementById('signupEmail').value.trim();
   const password = document.getElementById('signupPassword').value.trim();
   const confirmPassword = document.getElementById('signupConfirmPassword').value.trim();
@@ -129,42 +167,80 @@ function handleSignup() {
     return;
   }
 
-  // Get all users
-  const allUsers = JSON.parse(localStorage.getItem('allUsers')) || [];
+  // Show loading state
+  const signupBtn = document.querySelector('#signupModal .btn-modal');
+  const originalText = signupBtn.textContent;
+  signupBtn.textContent = 'Creating account...';
+  signupBtn.disabled = true;
 
-  // Check if user already exists
-  const existingUser = allUsers.find(u => u.email === email);
-  if (existingUser) {
-    alert('User already exists. Please login instead.');
-    return;
+  try {
+    // Try Firebase first
+    const { firebaseAuth } = await import('./firebase.js');
+    const result = await firebaseAuth.signUp(email, password);
+
+    if (result.success) {
+      // Success - redirect to main app
+      window.location.href = 'index.html';
+      return;
+    } else {
+      // Firebase failed, try localStorage fallback
+      console.warn('Firebase signup failed, falling back to localStorage:', result.error);
+      await handleSignupFallback(email, password);
+    }
+  } catch (error) {
+    console.warn('Firebase signup error, falling back to localStorage:', error);
+    // Firebase failed, use localStorage fallback
+    await handleSignupFallback(email, password);
+  } finally {
+    // Reset button
+    signupBtn.textContent = originalText;
+    signupBtn.disabled = false;
   }
+}
 
-  // Create new user
-  const newUser = {
-    email: email,
-    name: email.split('@')[0],
-    isPremium: false,
-    signupTime: new Date().toISOString()
-  };
+// Fallback signup using localStorage (original implementation)
+async function handleSignupFallback(email, password) {
+  try {
+    // Get all users
+    const allUsers = JSON.parse(localStorage.getItem('allUsers')) || [];
 
-  // Add to all users
-  allUsers.push(newUser);
-  localStorage.setItem('allUsers', JSON.stringify(allUsers));
+    // Check if user already exists
+    const existingUser = allUsers.find(u => u.email === email);
+    if (existingUser) {
+      alert('User already exists. Please login instead.');
+      return;
+    }
 
-  // Store user data
-  const userData = {
-    email: email,
-    name: newUser.name,
-    isLoggedIn: true,
-    isPremium: false,
-    signupTime: new Date().toISOString()
-  };
+    // Create new user
+    const newUser = {
+      email: email,
+      name: email.split('@')[0],
+      isPremium: false,
+      signupTime: new Date().toISOString()
+    };
 
-  localStorage.setItem('userData', JSON.stringify(userData));
-  localStorage.setItem('userMode', 'loggedIn');
+    // Add to all users
+    allUsers.push(newUser);
+    localStorage.setItem('allUsers', JSON.stringify(allUsers));
 
-  // Redirect to main app
-  window.location.href = 'index.html';
+    // Store user data
+    const userData = {
+      email: email,
+      name: newUser.name,
+      isLoggedIn: true,
+      isPremium: false,
+      signupTime: new Date().toISOString()
+    };
+
+    localStorage.setItem('userData', JSON.stringify(userData));
+    localStorage.setItem('userMode', 'loggedIn');
+
+    // Success - redirect to main app
+    window.location.href = 'index.html';
+  } catch (error) {
+    alert('An error occurred during signup. Please try again.');
+    console.error('Signup fallback error:', error);
+  }
 }
 
 // Smooth scrolling for anchor links
