@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vvvinify - Premium Music Streaming</title>
+    <link rel="stylesheet" href="css/landing.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-logo">
+                <h1>Vvvinify</h1>
+            </div>
+            <div class="nav-links">
+                <a href="#features">Features</a>
+                <a href="#pricing">Pricing</a>
+                <a href="#about">About</a>
+                <button class="btn-login" onclick="showLoginModal()">Sign In</button>
+            </div>
+            <div class="mobile-menu-toggle" onclick="toggleMobileMenu()">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <button class="hero-dismiss" onclick="dismissHero()" aria-label="Dismiss hero section">&times;</button>
+        <div class="hero-container">
+            <div class="hero-content">
+                <h1 class="hero-title">Discover. Stream. Enjoy.</h1>
+                <p class="hero-subtitle">Experience premium music streaming with unlimited access to millions of songs, ad-free listening, and high-quality audio.</p>
+                <div class="hero-buttons">
+                    <button class="btn-primary" onclick="showSignupModal()">Get Started Free</button>
+                    <button class="btn-secondary" onclick="enterApp()">Continue as Guest</button>
+                </div>
+            </div>
+            <div class="hero-image">
+                <div class="music-visualizer">
+                    <div class="bar"></div>
+                    <div class="bar"></div>
+                    <div class="bar"></div>
+                    <div class="bar"></div>
+                    <div class="bar"></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section id="features" class="features">
+        <div class="container">
+            <h2 class="section-title">Why Choose Vvvinify?</h2>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">🎵</div>
+                    <h3>Millions of Songs</h3>
+                    <p>Access to a vast library of music from artists around the world.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">📱</div>
+                    <h3>Cross-Platform</h3>
+                    <p>Stream on any device - desktop, mobile, tablet, and more.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🚫</div>
+                    <h3>Ad-Free Experience</h3>
+                    <p>Enjoy uninterrupted music with our premium ad-free listening.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🎧</div>
+                    <h3>High-Quality Audio</h3>
+                    <p>Crystal clear sound with support for high-fidelity audio.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">📋</div>
+                    <h3>Create Playlists</h3>
+                    <p>Build and share your personalized music collections.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">⬆️</div>
+                    <h3>Upload Music</h3>
+                    <p>Upload and stream your own music library.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Pricing Section -->
+    <section id="pricing" class="pricing">
+        <div class="container">
+            <h2 class="section-title">Choose Your Plan</h2>
+            <div class="pricing-grid">
+                <div class="pricing-card">
+                    <div class="pricing-header">
+                        <h3>Free</h3>
+                        <div class="price">$0<span>/month</span></div>
+                    </div>
+                    <ul class="pricing-features">
+                        <li>✓ Access to basic features</li>
+                        <li>✓ Limited skips</li>
+                        <li>✓ Ads included</li>
+                        <li>✓ Standard quality</li>
+                        <li>✗ Unlimited skips</li>
+                        <li>✗ Ad-free listening</li>
+                    </ul>
+                    <button class="btn-pricing" onclick="enterApp()">Get Started</button>
+                </div>
+                <div class="pricing-card premium">
+                    <div class="pricing-header">
+                        <h3>Premium</h3>
+                        <div class="price">$9.99<span>/month</span></div>
+                        <div class="badge">Most Popular</div>
+                    </div>
+                    <ul class="pricing-features">
+                        <li>✓ Everything in Free</li>
+                        <li>✓ Unlimited skips</li>
+                        <li>✓ Ad-free listening</li>
+                        <li>✓ High-quality audio</li>
+                        <li>✓ Download for offline</li>
+                        <li>✓ Priority support</li>
+                    </ul>
+                    <button class="btn-pricing premium-btn" onclick="showSignupModal()">Go Premium</button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Login Modal -->
+    <div id="loginModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Welcome Back</h2>
+                <span class="close" onclick="closeLoginModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="input-group">
+                    <label for="loginEmail">Email</label>
+                    <input type="email" id="loginEmail" placeholder="Enter your email">
+                </div>
+                <div class="input-group">
+                    <label for="loginPassword">Password</label>
+                    <input type="password" id="loginPassword" placeholder="Enter your password">
+                </div>
+                <button class="btn-modal" onclick="handleLogin()">Sign In</button>
+                <p class="modal-footer">Don't have an account? <a href="#" onclick="switchToSignup()">Sign up</a></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Signup Modal -->
+    <div id="signupModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Join Vvvinify</h2>
+                <span class="close" onclick="closeSignupModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="input-group">
+                    <label for="signupEmail">Email</label>
+                    <input type="email" id="signupEmail" placeholder="Enter your email">
+                </div>
+                <div class="input-group">
+                    <label for="signupPassword">Password</label>
+                    <input type="password" id="signupPassword" placeholder="Create a password">
+                </div>
+                <div class="input-group">
+                    <label for="signupConfirmPassword">Confirm Password</label>
+                    <input type="password" id="signupConfirmPassword" placeholder="Confirm your password">
+                </div>
+                <button class="btn-modal" onclick="handleSignup()">Create Account</button>
+                <p class="modal-footer">Already have an account? <a href="#" onclick="switchToLogin()">Sign in</a></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h3>Vvvinify</h3>
+                    <p>Your ultimate music streaming companion.</p>
+                </div>
+                <div class="footer-section">
+                    <h4>Product</h4>
+                    <a href="#features">Features</a>
+                    <a href="#pricing">Pricing</a>
+                    <a href="#about">About</a>
+                </div>
+                <div class="footer-section">
+                    <h4>Support</h4>
+                    <a href="#">Help Center</a>
+                    <a href="#">Contact Us</a>
+                    <a href="#">Privacy Policy</a>
+                </div>
+                <div class="footer-section">
+                    <h4>Follow Us</h4>
+                    <div class="social-links">
+                        <a href="#" class="social-link">📘</a>
+                        <a href="#" class="social-link">🐦</a>
+                        <a href="#" class="social-link">📷</a>
+                    </div>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2026 Vvvinify. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="js/landing.js"></script>
+</body>
+</html>
